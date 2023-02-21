@@ -11,13 +11,5 @@ opt-level = 1
 [profile.dev.package."*"]
 opt-level = 3
 
-# use zld linker
-# On MacOS, `brew install michaeleisel/zld/zld`
-[target.x86_64-apple-darwin]
-rustflags = ["-C", "link-arg=-fuse-ld=/opt/homebrew/bin/zld"]
-
-[target.aarch64-apple-darwin]
-rustflags = ["-C", "link-arg=-fuse-ld=/opt/homebrew/bin/zld"]
-
 [dependencies]
 bevy = { version = "0.9.1", features = ["dynamic"] }
