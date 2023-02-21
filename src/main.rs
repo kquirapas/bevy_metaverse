@@ -1,6 +1,7 @@
 use bevy::prelude::*;
 
-const GRAVITY: f32 = 100.0;
+const JUMP_IMPULSE: f32 = 300.0;
+const GRAVITY: f32 = 500.0;
 const SPRITE_WIDTH: f32 = 50.0;
 const SPRITE_HEIGHT: f32 = 50.0;
 const SCREEN_WIDTH: f32 = 640.0;
@@ -11,61 +12,56 @@ const SPEED: f32 = 300.0;
 struct Name(String);
 
 #[derive(Component)]
-enum Direction {
-    Stay,
-    Up,
-    Down,
-    Left,
-    Right
+enum State {
+    Jumping,
+    OnGround
 }
 
-// #[derive(Component)]
-// enum State {
-//     Moving,
-//     Stationary
-// }
+#[derive(Component)]
+struct Velocity {
+    x: f32,
+    y: f32,
+}
 
-fn keyboard_input(time: Res<Time>, keyboard_input: Res<Input<KeyCode>>, mut position: Query<(&mut Direction, &mut Transform)>) {
-    for (mut direction, mut position) in &mut position {
-        // apply movement changes based on time delta
-        match *direction {
-            Direction::Up => position.translation.y += SPEED * time.delta_seconds(),
-            Direction::Down => position.translation.y -= SPEED * time.delta_seconds(),
-            Direction::Left => position.translation.x -= SPEED * time.delta_seconds(),
-            Direction::Right => position.translation.x += SPEED * time.delta_seconds(),
-            Direction::Stay => ()
-        }
-
-        // make Stay a default direction
-        *direction = Direction::Stay;
-
+fn keyboard_input(time: Res<Time>, keyboard_input: Res<Input<KeyCode>>, mut position: Query<(&mut State, &mut Velocity, &mut Transform)>) {
+    for (mut state, mut velocity, mut position) in &mut position {
+        // reset horizontal velocity
+        velocity.x = 0.0;
+        
         // make Transform adjustments
         if keyboard_input.pressed(KeyCode::W) {
-            info!("Sprite moving up!");
-            *direction = Direction::Up;
-        } else if keyboard_input.pressed(KeyCode::A) {
+            if let State::OnGround = *state {
+                info!("Sprite jumping up!");
+                velocity.y = JUMP_IMPULSE;
+
+                *state = State::Jumping;
+            }
+        }
+
+        if keyboard_input.pressed(KeyCode::A) {
             info!("Sprite moving left!");
-            *direction = Direction::Left;
-        } else if keyboard_input.pressed(KeyCode::S) {
-            info!("Sprite moving down!");
-            *direction = Direction::Down;
+            velocity.x = -SPEED;
         } else if keyboard_input.pressed(KeyCode::D) {
             info!("Sprite moving right!");
-            *direction = Direction::Right;
+            velocity.x = SPEED;
         }
+
+        // apply movement changes based on time delta
+        position.translation.x += velocity.x * time.delta_seconds();
+        position.translation.y += velocity.y * time.delta_seconds();
     }
 }
 
 /*
  * @dev prevent the sprite from going out of bounds
  */
-fn screen_bound(mut position: Query<(&mut Direction, &mut Transform)>) {
+fn screen_bound(mut position: Query<(&mut State, &mut Transform)>) {
     let half_screen_width = SCREEN_WIDTH / 2.0;
     let half_screen_height = SCREEN_HEIGHT / 2.0;
     let half_sprite_width = SPRITE_WIDTH / 2.0;
     let half_sprite_height = SPRITE_HEIGHT / 2.0;
 
-    for (_, mut position) in &mut position {
+    for (mut state, mut position) in &mut position {
         if position.translation.x - half_sprite_width < -half_screen_width {
             info!("Left Screen Collision!");
             position.translation.x = -half_screen_width + half_sprite_width;
@@ -75,10 +71,13 @@ fn screen_bound(mut position: Query<(&mut Direction, &mut Transform)>) {
         }
 
         if position.translation.y - half_sprite_height < -half_screen_height {
-            info!("Top Screen Collision!");
-            position.translation.y = -half_screen_height + half_sprite_height;
-        } else if position.translation.y + half_sprite_height > half_screen_height {
             info!("Bottom Screen Collision!");
+            position.translation.y = -half_screen_height + half_sprite_height;
+
+            // change state to no longer jumping
+            *state = State::OnGround;
+        } else if position.translation.y + half_sprite_height > half_screen_height {
+            info!("Top Screen Collision!");
             position.translation.y = half_screen_height - half_sprite_height;
         }
     }
@@ -86,10 +85,16 @@ fn screen_bound(mut position: Query<(&mut Direction, &mut Transform)>) {
 
 /*
  * @dev apply gravity
+ * 
+ * remember that gravity is a form of acceleration (m^2)
  */
-fn apply_gravity(time: Res<Time>, mut position: Query<(&mut Direction, &mut Transform)>) {
-    for (_, mut position) in &mut position {
-        position.translation.y -= GRAVITY * time.delta_seconds();
+fn apply_gravity(time: Res<Time>, mut position: Query<(&mut State, &mut Velocity)>) {
+    for (state, mut velocity) in &mut position {
+        // gravity only applies when player is in Jumping State
+        match *state {
+            State::Jumping => velocity.y -= GRAVITY * time.delta_seconds(),
+            State::OnGround => velocity.y = 0.0
+        }
     }
 }
 
@@ -97,7 +102,7 @@ fn draw(mut commands: Commands) {
     commands.spawn(Camera2dBundle::default());
 
     // Player Entity
-    // Spawn entity with (SpriteBundle, Direction) tuple
+    // Spawn entity with (SpriteBundle, State, Velocity) tuple
     commands.spawn((
             SpriteBundle {
                 sprite: Sprite {
@@ -107,7 +112,11 @@ fn draw(mut commands: Commands) {
                 },
                 ..default()
             },
-            Direction::Stay
+            State::Jumping,
+            Velocity {
+                x: 0.0,
+                y: 0.0,
+            }
         )
     );
 }
