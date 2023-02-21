@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 
+const GRAVITY: f32 = 100.0;
 const SPRITE_WIDTH: f32 = 50.0;
 const SPRITE_HEIGHT: f32 = 50.0;
 const SCREEN_WIDTH: f32 = 640.0;
@@ -83,6 +84,15 @@ fn screen_bound(mut position: Query<(&mut Direction, &mut Transform)>) {
     }
 }
 
+/*
+ * @dev apply gravity
+ */
+fn apply_gravity(time: Res<Time>, mut position: Query<(&mut Direction, &mut Transform)>) {
+    for (_, mut position) in &mut position {
+        position.translation.y -= GRAVITY * time.delta_seconds();
+    }
+}
+
 fn draw(mut commands: Commands) {
     commands.spawn(Camera2dBundle::default());
 
@@ -115,6 +125,7 @@ fn main() {
         }))
         .add_startup_system(draw)
         .add_system(keyboard_input)
+        .add_system(apply_gravity)
         .add_system(screen_bound)
         .run();
 }
